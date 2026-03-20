@@ -436,8 +436,6 @@ msg.reply(info)
 }
 // -------- SISTEMA ANIME PRO RANDOM 🔥 --------
 
-const { MessageMedia } = require('whatsapp-web.js');
-
 const reactions = {
     hug: ["hug","abrazar"],
     kiss: ["kiss","muak"],
