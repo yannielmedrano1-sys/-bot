@@ -266,90 +266,139 @@ msg.reply("❌ Error en play")
 }
 
 }
-// -------- VIDEO --------
 
-if (command === "video") {
 
-const text = args.join(" ")
-if (!text) return msg.reply("❌ Escribe el video")
+// -------- HANDLER --------
+client.on('message', async (msg) => {
 
-try {
+    // -------- BASE PREFIX --------
+    const body = msg.body || "";
+    const prefix = ".";
 
-const { videos } = await yts(text)
-const v = videos[0]
+    if (!body.startsWith(prefix)) return;
 
-if (!v) return msg.reply("❌ No encontré nada")
+    const command = body.slice(prefix.length).trim().split(" ")[0].toLowerCase();
+    const text = body.slice(prefix.length + command.length).trim();
 
-let loading = await msg.reply(`⏳ Descargando: ${v.title}`)
-
-try {
-  const api = `https://api.nexylight.xyz/dl/ytmp4?id=${v.videoId}&quality=720`
-  
-  const { data } = await axios.get(api, { 
-    timeout: 60000,
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    // -------- FUNCION FORMATEAR VISTAS --------
+    function formatViews(num) {
+        if (!num) return "0";
+        if (num >= 1e6) return (num / 1e6).toFixed(1) + "M";
+        if (num >= 1e3) return (num / 1e3).toFixed(1) + "K";
+        return num;
     }
-  })
 
-  console.log("Respuesta API Video:", JSON.stringify(data).substring(0, 200))
+    // -------- COMANDO PLAY2 / VIDEO --------
+    if (command === "play2" || command === "video") {
 
-  const video = data.result?.url || data.url
+        if (!text) {
+            return client.sendMessage(msg.from, "❌ Escribe el nombre del video");
+        }
 
-  if (!video) {
-    await loading.delete()
-    return msg.reply("❌ No se obtuvo el video")
-  }
+        try {
+            // 🔥 API
+            const res = await fetch(`https://api.nexylight.xyz/search/yt?q=${encodeURIComponent(text)}`);
+            const json = await res.json();
 
-  const media = await MessageMedia.fromUrl(video, { unsafeMime: true })
-  await client.sendMessage(msg.from, media, {
-    caption: `🎬 ${v.title}\n\nBy Yanniel`
-  })
-  
-  await loading.delete()
+            if (!json.status) {
+                return client.sendMessage(msg.from, "❌ No se encontró el video");
+            }
 
-} catch (apiErr) {
-  console.log("Error API Video:", apiErr.code, apiErr.message)
-  await loading.delete()
-  
-  if (apiErr.code === 'ECONNABORTED') {
-    msg.reply("⏱️ El video tardó mucho. Intenta con uno más pequeño.")
-  } else {
-    msg.reply("❌ Error descargando el video")
-  }
-}
+            const data = json.data;
+            const dl = json.download;
 
-} catch (err) {
-console.log("Error general Video:", err)
-msg.reply("❌ Error en video")
-}
+            // 📌 INFO BONITA
+            let info = `✧ ‧₊˚ YOUTUBE VIDEO ୧ֹ˖ ⑅ ࣪⊹
+⊹₊ ˚‧︵‿₊୨୧₊‿︵‧ ˚ ₊⊹
 
-}
+› ✰ Título: ${data.title}
+› ✿ Canal: ${data.author || "Desconocido"}
+› ✦ Duración: ${data.duration}
+› ꕤ Vistas: ${formatViews(data.views)}
+› ❖ Link: ${data.url}`;
 
-// -------- TIKTOK --------
+            // 🖼️ THUMBNAIL
+            let thumb;
+            try {
+                thumb = await MessageMedia.fromUrl(data.thumbnail, { unsafeMime: true });
+            } catch {
+                thumb = null;
+            }
+
+            if (thumb) {
+                await client.sendMessage(msg.from, thumb, { caption: info });
+            } else {
+                await client.sendMessage(msg.from, info);
+            }
+
+            // 🎥 VIDEO (FIX MIME)
+            let video;
+            try {
+                video = await MessageMedia.fromUrl(dl.url, { unsafeMime: true });
+            } catch {
+                const res2 = await fetch(dl.url);
+                const buffer = await res2.arrayBuffer();
+
+                video = new MessageMedia(
+                    'video/mp4',
+                    Buffer.from(buffer).toString('base64')
+                );
+            }
+
+            await client.sendMessage(msg.from, video, {
+                caption: "🎥 Aquí tienes tu video"
+            });
+
+        } catch (e) {
+            console.log("ERROR PLAY2:", e);
+            client.sendMessage(msg.from, "❌ Error al buscar el video");
+        }
+    }
+
+});
+// -------- DOWNLOADER: TIKTOK --------
 
 if (command === "tiktok" || command === "tt") {
+    const url = args[0];
+    if (!url) return msg.reply("❌ ¡Mano, falta el link de TikTok!");
 
-const url = args[0]
-if (!url) return msg.reply("❌ Pon el link")
+    // 1. Enviamos el estado inicial
+    const m = await client.sendMessage(msg.from, "*Descargando..*");
 
-try {
+    try {
+        // 2. Petición a la API (Asegúrate de tener el link de tu API aquí)
+        const { data } = await axios.get(`TU_API_AQUI?url=${url}`);
 
-const api = `https://api.nexylight.xyz/dl/tiktok?url=${encodeURIComponent(url)}`
+        if (data.status && data.result) {
+            const video = data.result;
+            
+            // 3. Cargamos el video desde la URL del JSON
+            const media = await MessageMedia.fromUrl(video.url);
 
-const { data } = await axios.get(api, { timeout: 45000 })
+            // 4. Mandamos el video con la info detallada
+            await client.sendMessage(msg.from, media, {
+                caption: `˚.⋆ֹ　 ꒰ T I K T O K – D L ꒱ㆍ₊⊹
 
-const videoUrl = data.data?.media?.video_hd || data.data?.media?.video_wm
+✰ *Título* ⊹ \`${video.title.split('\n')[0]}\`
+ꕤ *User* ⊹ \`@${video.username}\`
+✰ *Likes* ⊹ \`${video.likes.toLocaleString()}\`
+ꕤ *Comments* ⊹ \`${video.comments.toLocaleString()}\`
+✰ *Status* ⊹ \`Success\`
 
-if (!videoUrl) return msg.reply("❌ Error")
+   💫 *Powered by:* \`Yanniel\` ✨`,
+            });
 
-const videoMedia = await MessageMedia.fromUrl(videoUrl, { unsafeMime: true })
-await client.sendMessage(msg.from, videoMedia, { caption: "🎵 TikTok Descargado" })
+            // 5. Borramos el "Descargando.." para limpiar el chat
+            await m.delete(true);
 
-} catch (err) {
-msg.reply("❌ Error en TikTok")
-}
+        } else {
+            await m.edit("❌ No pude encontrar ese video, bro.");
+        }
 
+    } catch (err) {
+        console.log("Error TikTok:", err);
+        await m.edit("⚠️ Error al conectar con el servidor de descarga.");
+    }
 }
 // -------- INFO --------
 
@@ -385,12 +434,357 @@ const info = `
 msg.reply(info)
 
 }
+// -------- SISTEMA ANIME PRO RANDOM 🔥 --------
 
-// -------- MENU --------
+const { MessageMedia } = require('whatsapp-web.js');
+
+const reactions = {
+    hug: ["hug","abrazar"],
+    kiss: ["kiss","muak"],
+    slap: ["slap","bofetada"],
+    punch: ["punch","pegar"],
+    pat: ["pat"],
+    cuddle: ["cuddle","acurrucarse"],
+    bite: ["bite","morder"],
+    lick: ["lick","lamer"],
+    love: ["love","enamorado"],
+    poke: ["poke"],
+    highfive: ["highfive","5"],
+    wave: ["wave","hola"],
+    wink: ["wink","guiñar"],
+    dance: ["dance","bailar"],
+
+    cry: ["cry","llorar"],
+    smile: ["smile","sonreir"],
+    angry: ["angry","enojado"],
+    sleep: ["sleep","dormir"],
+    eat: ["eat","comer"],
+    think: ["think","pensar"],
+    bored: ["bored","aburrido"],
+    shy: ["shy","timido"],
+    happy: ["happy","feliz"],
+    sad: ["sad","triste"],
+    scared: ["scared","asustado"]
+};
+
+// 🔍 detectar comando
+let type = null;
+for (let key in reactions) {
+    if (reactions[key].includes(command)) {
+        type = key;
+        break;
+    }
+}
+
+if (type) {
+    try {
+        const url = `https://api.nexylight.xyz/anime/reaction?type=${type}`;
+
+        let sender = msg.from.includes("@g.us") ? msg.author : msg.from;
+
+        let user = msg.mentionedIds?.[0];
+        if (!user && msg.hasQuotedMsg) {
+            const quoted = await msg.getQuotedMessage();
+            user = quoted.author || quoted.from;
+        }
+
+        const contact = await client.getContactById(sender);
+        const senderName = contact.pushname || "Usuario";
+
+        let userTag = user ? user.split("@")[0] : null;
+
+        const frases = {
+
+    // 😡 EMOCIONES
+    angry: [
+        "se enfurece",
+        "estalla de rabia",
+        "pierde el control",
+        "se llena de ira",
+        "no puede contener su enojo"
+    ],
+    blush: [
+        "se sonroja",
+        "se pone rojo",
+        "no puede ocultar su vergüenza",
+        "se pone tímido",
+        "se sonroja intensamente"
+    ],
+    bored: [
+        "está aburrido",
+        "no sabe qué hacer",
+        "se muere del aburrimiento",
+        "pierde el tiempo",
+        "no encuentra nada interesante"
+    ],
+    cry: [
+        "llora",
+        "no puede dejar de llorar",
+        "derrame lágrimas",
+        "se pone a llorar",
+        "se quiebra emocionalmente"
+    ],
+    happy: [
+        "está feliz",
+        "irradia felicidad",
+        "no puede dejar de sonreír",
+        "se siente alegre",
+        "brilla de felicidad"
+    ],
+    sad: [
+        "está triste",
+        "se siente solo",
+        "refleja tristeza",
+        "se deprime",
+        "pierde el ánimo"
+    ],
+    scared: [
+        "se asusta",
+        "entra en pánico",
+        "tiembla de miedo",
+        "se paraliza del susto",
+        "huye del miedo"
+    ],
+    shy: [
+        "se pone tímido",
+        "oculta su vergüenza",
+        "se sonroja tímidamente",
+        "evita mirar",
+        "se pone nervioso"
+    ],
+    smile: [
+        "sonríe",
+        "muestra una sonrisa",
+        "sonríe dulcemente",
+        "sonríe felizmente",
+        "regala una sonrisa"
+    ],
+
+    // 🧍 ACCIONES
+    bath: [
+        "se baña",
+        "disfruta un baño",
+        "se relaja en la bañera",
+        "se mete a bañar",
+        "toma un baño relajante"
+    ],
+    coffee: [
+        "toma café",
+        "disfruta café",
+        "bebe café tranquilamente",
+        "se toma un cafecito",
+        "saborea su café"
+    ],
+    drunk: [
+        "está borracho",
+        "se pasa de copas",
+        "no puede ni caminar",
+        "anda ebrio",
+        "está totalmente tomado"
+    ],
+    eat: [
+        "come",
+        "devora comida",
+        "disfruta su comida",
+        "se da un festín",
+        "come con gusto"
+    ],
+    facepalm: [
+        "hace facepalm",
+        "se tapa la cara",
+        "no puede creerlo",
+        "se avergüenza",
+        "se lleva la mano a la cara"
+    ],
+    kill: [
+        "ataca",
+        "lanza un ataque",
+        "va al combate",
+        "entra en batalla",
+        "se lanza a pelear"
+    ],
+    sleep: [
+        "duerme",
+        "se queda dormido",
+        "cae dormido",
+        "duerme profundamente",
+        "se echa a dormir"
+    ],
+    smoke: [
+        "fuma",
+        "da una calada",
+        "fuma tranquilamente",
+        "inhala humo",
+        "fuma con estilo"
+    ],
+    think: [
+        "piensa",
+        "reflexiona",
+        "analiza todo",
+        "se queda pensando",
+        "entra en reflexión"
+    ],
+    walk: [
+        "camina",
+        "da un paseo",
+        "camina tranquilo",
+        "sale a caminar",
+        "camina sin prisa"
+    ],
+
+    // ❤️ INTERACCIONES
+    bite: [
+        "muerde",
+        "le da un mordisco",
+        "muerde juguetonamente",
+        "ataca a mordidas",
+        "le clava los dientes"
+    ],
+    clap: [
+        "aplaude",
+        "da un aplauso",
+        "aplaude fuerte",
+        "aplaude emocionado",
+        "reconoce con aplausos"
+    ],
+    cuddle: [
+        "se acurruca con",
+        "abraza con cariño a",
+        "se pega a",
+        "busca calor con",
+        "se acurruca tiernamente con"
+    ],
+    dance: [
+        "baila con",
+        "se pone a bailar con",
+        "muestra sus pasos con",
+        "baila alegremente con",
+        "se mueve con"
+    ],
+    hug: [
+        "abraza",
+        "le da un abrazo",
+        "se lanza a abrazar",
+        "abraza fuertemente",
+        "le da un abrazo cálido"
+    ],
+    kiss: [
+        "lanza un beso",
+        "le roba un beso",
+        "le planta un beso",
+        "le da un beso",
+        "le da un beso dulce"
+    ],
+    lick: [
+        "lama",
+        "le pasa la lengua",
+        "lama juguetonamente",
+        "le da una lamida",
+        "lama lentamente"
+    ],
+    love: [
+        "ama",
+        "está enamorado de",
+        "siente amor por",
+        "se enamora de",
+        "adora a"
+    ],
+    pat: [
+        "acaricia",
+        "le da palmaditas",
+        "mima",
+        "le da cariño",
+        "acaricia suavemente"
+    ],
+    poke: [
+        "pica",
+        "le da un toque",
+        "molesta suavemente",
+        "le toca la mejilla",
+        "llama la atención de"
+    ],
+    punch: [
+        "golpea",
+        "le da un puñetazo",
+        "lanza un golpe",
+        "ataca con fuerza",
+        "le da un golpe fuerte"
+    ],
+    slap: [
+        "le da una bofetada",
+        "cachetea",
+        "le mete una cachetada",
+        "le da una palmada fuerte",
+        "le suelta una bofetada"
+    ],
+    spit: [
+        "escupe",
+        "escupe con desprecio",
+        "lanza saliva",
+        "muestra desprecio",
+        "escupe molesto"
+    ],
+    highfive: [
+        "choca los cinco con",
+        "celebra con",
+        "le da un high five a",
+        "choca manos con",
+        "celebra junto a"
+    ],
+    wave: [
+        "saluda",
+        "agita la mano a",
+        "saluda con entusiasmo a",
+        "se despide de",
+        "dice hola a"
+    ],
+    wink: [
+        "guiña",
+        "le guiña el ojo",
+        "lanza un guiño",
+        "guiña coquetamente",
+        "le guiña con picardía"
+    ]
+};
+
+        // 🎲 elegir frase random
+        let lista = frases[type] || [type];
+        let accion = lista[Math.floor(Math.random() * lista.length)];
+
+       // 📝 texto final estilo PRO
+let texto = user
+    ? `\`${senderName}\` ${accion} a @${userTag}.`
+    : `\`${senderName}\` ${accion}.`;
+
+        // 🔥 media
+        let media;
+        try {
+            media = await MessageMedia.fromUrl(url, { unsafeMime: true });
+        } catch {
+            const res = await fetch(url);
+            const buffer = await res.arrayBuffer();
+
+            media = new MessageMedia(
+                'video/mp4',
+                Buffer.from(buffer).toString('base64')
+            );
+        }
+
+        await client.sendMessage(msg.from, media, {
+            caption: texto,
+            mentions: user ? [user] : [],
+            sendVideoAsGif: true
+        });
+
+    } catch (e) {
+        console.log(e);
+        client.sendMessage(msg.from, "❌ Error en anime");
+    }
+}
+// -------- MENU ACTUALIZADO (ESTILO EXTENDIDO) --------
 
 if (command === "menu" || command === "help" || command === "h") {
 
-const userName = msg.author.split("@")[0] || msg.from.split("@")[0] || "User"
 const pushName = msg._data.notifyName || "Usuario"
 
 msg.reply(`Hola ${pushName}, Soy 𝓜𝓲𝓼𝓪
@@ -403,35 +797,106 @@ msg.reply(`Hola ${pushName}, Soy 𝓜𝓲𝓼𝓪
 ꕤ Modo ⊹ Premium
 
 ˚.⋆ֹ　 ꒰ I N F O – B O T ꒱ㆍ₊⊹
-> ✐ Consulta el estado, la velocidad y la información general del sistema del Bot.
 ✿ .ping › .p
-> Muestra la latencia y velocidad de respuesta actual.
+> Muestra la latencia y velocidad de respuesta.
 ✿ .uptime › .up
-> Muestra el tiempo que lleva activo el bot.
+> Muestra el tiempo activo del sistema.
 ✿ .info › .botinfo
-> Detalles técnicos y versiones instaladas del bot.
+> Detalles técnicos del servidor.
 ✿ .menu › .help
-> Despliega la lista completa de comandos disponibles.
+> Despliega la lista de comandos.
 
 ˚.⋆ֹ　 ꒰ D O W N L O A D S ꒱ㆍ₊⊹
-> ✐ Herramientas para obtener contenido multimedia de diversas plataformas sociales.
 ✿ .play › .ytmp3
-> Busca música en YouTube y la descarga en formato de audio MP3.
-✿ .video › .ytmp4
-> Busca videos en YouTube y los descarga en formato de video MP4.
+> Descarga música de YouTube (MP3).
+✿ .play2 › .ytmp4
+> Descarga videos de YouTube (MP4).
 ✿ .tiktok › .tt
-> Descarga videos de TikTok sin marca de agua mediante el enlace.
+> Descarga videos de TikTok sin marca.
 
 ˚.⋆ֹ　 ꒰ U T I L I T I E S ꒱ㆍ₊⊹
-> ✐ Funciones útiles para mejorar la experiencia diaria.
-✿ .ai › .search › .gemini
-> Chat inteligente para resolver dudas o generar textos con IA.
+✿ .ai › .search
+> Chat inteligente con Gemini IA.
 
+˚.⋆ֹ　 ꒰ A N I M E ꒱ㆍ₊⊹
+> ✐ Reacciones y acciones emocionales.
+✿ .angry › .enojado
+> Expresa una furia incontrolable.
+✿ .blush › .sonrojarse
+> Muestra tu cara roja por timidez.
+✿ .bored › .aburrido
+> Expresa que no tienes nada que hacer.
+✿ .cry › .llorar
+> Derrama lágrimas de tristeza.
+✿ .happy › .feliz
+> Irradia alegría pura con destellos.
+✿ .sad › .triste
+> Refleja un sentimiento de soledad.
+✿ .scared › .asustado
+> Reacciona con pánico ante el terror.
+✿ .shy › .timido
+> Oculta tu vergüenza con ternura.
+✿ .smile › .sonreir
+> Muestra una sonrisa cálida y sincera.
 
-   💫 𝓜𝓲𝓼𝓪 - Bot   
-       *Powered by:* \`Yanniel\` ✨          
+> ⊹ ACCIONES INDIVIDUALES
+✿ .bath › .bañarse
+> Disfruta de un baño relajante.
+✿ .coffee › .cafe
+> Disfruta de una taza de café caliente.
+✿ .drunk › .borracho
+> Demuestra que te has pasado de copas.
+✿ .eat › .comer
+> Devora un delicioso plato de ramen.
+✿ .facepalm
+> Mano en la cara ante la estupidez.
+✿ .kill › .matar
+> Realiza un ataque letal de pelea.
+✿ .sleep › .dormir
+> Quédate profundamente dormido.
+✿ .smoke › .fumar
+> Dale una calada con actitud fría.
+✿ .think › .pensar
+> Reflexión profunda de misterio.
+✿ .walk › .caminar
+> Da un paseo tranquilo por la escuela.
 
-`)
+> ⊹ INTERACCIONES CON OTROS
+✿ .bite › .morder
+> Clava tus dientes juguetonamente.
+✿ .clap › .aplaudir
+> Dale un fuerte aplauso a alguien.
+✿ .cuddle › .acurrucarse
+> Busca calor y afecto tiernamente.
+✿ .dance › .bailar
+> Realiza un baile con tus amigos.
+✿ .hug › .abrazar
+> Rodea con tus brazos a un usuario.
+✿ .kiss › .muak
+> Dale un beso dulce o apasionado.
+✿ .lick › .lamer
+> Pasa tu lengua por la mejilla.
+✿ .love › .enamorado
+> Declara tus sentimientos con corazones.
+✿ .pat
+> Palmaditas suaves en la cabeza.
+✿ .poke
+> Pica la mejilla para llamar la atención.
+✿ .punch › .pegar
+> Dale un puñetazo a quien te hizo enojar.
+✿ .slap › .bofetada
+> Dale una bofetada a quien se portó mal.
+✿ .spit › .escupir
+> Escupe con desprecio hacia alguien.
+✿ .highfive › .5
+> Choca los cinco con un compañero.
+✿ .wave › .hola
+> Agita la mano para saludar o despedirte.
+✿ .wink › .guiñar
+> Lánzale un guiño coqueto a alguien.
+
+    💫 𝓜𝓲𝓼𝓪 - Bot   
+       *Powered by:* \`Yanniel\` ✨`)
 
 }
 
