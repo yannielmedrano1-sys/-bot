@@ -733,83 +733,159 @@ await msg.reply(media, undefined, {
             try { await chat.clearState() } catch (e) {}
         }
     }
-    // -------- PLAY (AUDIO - SYLPHY V2 & NEXY) --------
-    else if (command === "play" || command === "ytmp3") {
-        if (!text) return msg.reply("❌ Escribe la canción o pega un link de YouTube")
+    // -------- PLAY (AUDIO - RYUZEI + NEXY + SYLPHY) --------
+else if (command === "play" || command === "ytmp3") {
+    if (!text) return msg.reply("❌ Escribe la canción o pega un link de YouTube")
 
-        try {
-            let v = null, videoId = null
-            if (isYouTubeUrl(text)) {
-                videoId = extractVideoId(text)
-                if (!videoId) return msg.reply("❌ No pude extraer el ID")
-                await msg.react("⏳")
-                v = await getVideoInfoById(videoId)
-                if (!v) v = { title: "Audio YouTube", author: { name: "Desconocido" }, duration: { timestamp: "??:??" }, views: 0, url: text, thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`, videoId }
-            } else {
+    try {
+        let v = null, videoId = null
+
+        if (isYouTubeUrl(text)) {
+            videoId = extractVideoId(text)
+            if (!videoId) return msg.reply("❌ No pude extraer el ID")
+
+            await msg.react("⏳")
+
+            v = await getVideoInfoById(videoId).catch(() => null)
+
+            if (!v) {
+                v = {
+                    title: "Audio YouTube",
+                    author: { name: "Desconocido" },
+                    duration: { timestamp: "??:??" },
+                    views: 0,
+                    url: text,
+                    thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+                    videoId
+                }
+            }
+
+        } else {
+            await msg.react("⏳")
+
+            // 🔍 RYUZEI (PRINCIPAL)
+            try {
+                const { data } = await axios.get(
+                    `https://api.ryuzei.xyz/search/yts?q=${encodeURIComponent(text)}`,
+                    { timeout: 20000 }
+                )
+
+                if (!data.status || !data.results.length) throw "fail"
+
+                const r = data.results[0]
+
+                v = {
+                    title: r.title,
+                    videoId: r.id,
+                    url: r.url,
+                    thumbnail: r.thumbnail,
+                    duration: { timestamp: r.duration },
+                    views: r.views,
+                    author: { name: "YouTube" }
+                }
+
+                videoId = r.id
+
+            } catch {
+                console.log("❌ Ryuzei falló, usando yts...")
+
+                // 🔁 FALLBACK A YTS
                 const { videos } = await yts(text)
                 v = videos[0]
                 if (!v) return msg.reply("❌ No encontré nada")
+
                 videoId = v.videoId
-                await msg.react("⏳")
             }
-
-            const videoUrl_encoded = encodeURIComponent(v.url)
-            const apis = [
-                { url: `https://sylphy.xyz/download/v2/ytmp3?url=${videoUrl_encoded}&api_key=sylphy-zkacFeJ`, name: 'Sylphy-V2' },
-                { url: `https://api.nexylight.xyz/dl/ytmp3?id=${videoId}`, name: 'Nexy-MP3' }
-            ]
-
-            let audio = null
-            let success = false
-
-            for (const api of apis) {
-                if (success) break
-                try {
-                    const { data } = await axios.get(api.url, { timeout: 35000 })
-                    audio = data.result?.dl_url || data.result?.url || data.download?.url || data.url
-                    if (audio && data.status === true) {
-                        success = true
-                    }
-                } catch (e) { continue }
-            }
-
-            if (!audio) {
-                await msg.react("❌")
-                return msg.reply("❌ No se pudo obtener el audio.")
-            }
-
-            const infoMessage = `✧ ‧₊˚ *YOUTUBE AUDIO* ୧ֹ˖ ⑅ ࣪⊹\n⊹₊ ˚‧︵‿₊୨୧₊‿︵‧ ˚ ₊⊹\n\n› ✰ Título: ${v.title}\n› ✿ Canal: ${v.author?.name || "Desconocido"}\n› ✦ Duración: ${v.duration?.timestamp || "??:??"}\n› ꕤ Vistas: ${formatViews(v.views)}\n› ❖ Link: ${v.url}\n\n> Powered by 𝓜𝓲𝓼α ♡`
-
-            try {
-                // Descargamos el buffer para ponerle nombre manualmente
-                const resAudio = await axios.get(audio, { responseType: 'arraybuffer' });
-                const buffer = Buffer.from(resAudio.data);
-                
-                // Forzamos el nombre del archivo con v.title
-                const audioFile = new MessageMedia('audio/mp3', buffer.toString('base64'), `${v.title}.mp3`);
-                const thumb = await MessageMedia.fromUrl(v.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`);
-
-                await msg.reply(thumb, undefined, { caption: infoMessage });
-                await client.sendMessage(msg.from, audioFile, { 
-                    sendAudioAsVoice: false, 
-                    quotedMessageId: msg.id._serialized 
-                });
-                await msg.react("✅");
-
-            } catch (err) {
-                // Fallback si falla el método del buffer
-                const audioFileOnly = await MessageMedia.fromUrl(audio, { unsafeMime: true });
-                await msg.reply(infoMessage);
-                await client.sendMessage(msg.from, audioFileOnly, { sendAudioAsVoice: false });
-                await msg.react("✅");
-            }
-
-        } catch (err) {
-            await msg.react("❌");
-            await msg.reply("❌ Error: " + err.message);
         }
-    }
 
+        // -------- APIs --------
+        let audio = null
+
+        // 🔥 1. NEXY (PRINCIPAL)
+        try {
+            const { data } = await axios.get(
+                `https://api.nexylight.xyz/dl/ytmp3?id=${videoId}`,
+                { timeout: 12000 }
+            )
+            audio = data?.result?.url
+        } catch {
+            console.log("❌ Nexy falló, usando fallback...")
+        }
+
+        // 🔁 2. SYLPHY
+        if (!audio) {
+            try {
+                const { data } = await axios.get(
+                    `https://sylphy.xyz/download/v2/ytmp3?url=${encodeURIComponent(v.url)}&api_key=sylphy-zkacFeJ`,
+                    { timeout: 12000 }
+                )
+                audio = data?.result?.dl_url
+            } catch {
+                console.log("❌ Sylphy también falló")
+            }
+        }
+
+        if (!audio) {
+            await msg.react("❌")
+            return msg.reply("❌ No se pudo obtener el audio.")
+        }
+
+        // -------- LIMPIAR NOMBRE --------
+        const safeTitle = (v.title || "audio")
+            .replace(/[\\/:*?"<>|]/g, "")
+            .substring(0, 60)
+
+        const infoMessage = `✧ ‧₊˚ *YOUTUBE AUDIO* ୧ֹ˖ ⑅ ࣪⊹
+⊹₊ ˚‧︵‿₊୨୧₊‿︵‧ ˚ ₊⊹
+
+› ✰ Título: ${v.title}
+› ✿ Canal: ${v.author?.name || "Desconocido"}
+› ✦ Duración: ${v.duration?.timestamp || "??:??"}
+› ꕤ Vistas: ${formatViews(v.views)}
+› ❖ Link: ${v.url}
+
+> Powered by 𝓜𝓲𝓼α ♡`
+
+        try {
+            // 🔥 SIEMPRE CON NOMBRE
+            const resAudio = await axios.get(audio, { responseType: 'arraybuffer' })
+            const buffer = Buffer.from(resAudio.data)
+
+            const audioFile = new MessageMedia(
+                'audio/mp3',
+                buffer.toString('base64'),
+                `${safeTitle}.mp3`
+            )
+
+            const thumb = await MessageMedia.fromUrl(
+                v.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+            )
+
+            await msg.reply(thumb, undefined, { caption: infoMessage })
+
+            await client.sendMessage(msg.from, audioFile, {
+                sendAudioAsVoice: false,
+                quotedMessageId: msg.id._serialized
+            })
+
+            await msg.react("✅")
+
+        } catch {
+            const audioFileOnly = await MessageMedia.fromUrl(audio, { unsafeMime: true })
+
+            await msg.reply(infoMessage)
+            await client.sendMessage(msg.from, audioFileOnly, {
+                sendAudioAsVoice: false
+            })
+
+            await msg.react("✅")
+        }
+
+    } catch (err) {
+        await msg.react("❌")
+        await msg.reply("❌ Error: " + err.message)
+    }
+}
     // ꕤ ━━━━━━━━━━ PLAY2 / VIDEO ━━━━━━━━━━ ꕤ
        else if (command === "play2" || command === "video" || command === "mp4" || command === "ytv" || command === "ytmp4") {
            if (!text) return msg.reply("❌ ᴇsᴄʀɪʙᴇ ᴇʟ ɴᴏᴍʙʀᴇ ᴅᴇʟ ᴠɪᴅᴇᴏ ᴏ ᴘᴇɢᴀ ᴜɴ ʟɪɴᴋ")
