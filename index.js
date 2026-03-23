@@ -733,7 +733,7 @@ await msg.reply(media, undefined, {
             try { await chat.clearState() } catch (e) {}
         }
     }
-    // -------- PLAY (AUDIO - RYUZEI + NEXY + SYLPHY) --------
+// -------- PLAY (AUDIO - RYUZEI + NEXY + SYLPHY) --------
 else if (command === "play" || command === "ytmp3") {
     if (!text) return msg.reply("❌ Escribe la canción o pega un link de YouTube")
 
@@ -978,8 +978,55 @@ else if (command === "play" || command === "ytmp3") {
                await msg.react("❌"); await msg.reply(`❌ ᴇʀʀᴏʀ: ${e.message}`)
            }
        }
-       
-    // ꕤ ━━━━━━━━━━ TIKTOK ━━━━━━━━━━ ꕤ
+       // -------- PINTEREST SEARCH (.pin) --------
+    else if (command === "pin" || command === "pinterest") {
+        if (!text) return msg.reply("❌ ¿Qué quieres buscar? Ejemplo: .pin Misa Amane icon")
+
+        try {
+            await msg.react("🔍")
+            
+            // URL de la API de Nexy que me pasaste
+            const apiUrl = `https://api.nexylight.xyz/search/pinterest?q=${encodeURIComponent(text)}`
+            
+            const { data: res } = await axios.get(apiUrl, { timeout: 15000 })
+            
+            // Según tu JSON, los resultados están en res.data
+            if (!res.status || !res.data || res.data.length === 0) {
+                await msg.react("❌")
+                return msg.reply("❌ No encontré resultados para esa búsqueda.")
+            }
+
+            // Elegimos un pin al azar de los resultados devueltos
+            const pins = res.data
+            const randomPin = pins[Math.floor(Math.random() * pins.length)]
+            
+            // Extraemos la info del JSON
+            const imageUrl = randomPin.image
+            const title = randomPin.title && randomPin.title !== "No Title" ? randomPin.title : text
+            const pinner = randomPin.pinner || "Pinterest"
+
+            // Intentamos cargar la imagen
+            const media = await MessageMedia.fromUrl(imageUrl).catch(() => null)
+            
+            if (media) {
+                const caption = `✧ ‧₊˚ *PINTEREST SEARCH* ୧ֹ˖ ⑅ ࣪⊹\n\n› ✰ *Título:* ${title}\n› ✰ *Pinner:* ${pinner}\n\n> Powered by 𝓜𝓲𝓼α ♡`
+                
+                await client.sendMessage(msg.from, media, { 
+                    caption: caption,
+                    quotedMessageId: msg.id._serialized 
+                })
+                await msg.react("✅")
+            } else {
+                throw new Error("Error al procesar la imagen")
+            }
+
+        } catch (err) {
+            console.error("Error en Pinterest:", err.message)
+            await msg.react("❌")
+            await msg.reply("❌ Hubo un error con la API de Pinterest. Intenta más tarde.")
+        }
+    }
+// ꕤ ━━━━━━━━━━ TIKTOK OPTIMIZADO ━━━━━━━━━━ ꕤ
     else if (command === "tiktok" || command === "tt" || command === "ttdl") {
         const url = args[0]
         if (!url || !url.includes("tiktok.com")) {
@@ -987,83 +1034,77 @@ else if (command === "play" || command === "ytmp3") {
         }
         try {
             await msg.react("⏳")
+            
+            // 1. Obtener datos de la API
             const { data } = await axios.get(`https://api.nexylight.xyz/dl/tiktok?url=${encodeURIComponent(url)}`, {
                 timeout: 30000,
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+                headers: { 'User-Agent': 'Mozilla/5.0' }
             })
-            if (!data.status || !data.data) { await msg.react("❌"); return msg.reply("❌ ɴᴏ sᴇ ᴘᴜᴅᴏ ᴅᴇsᴄᴀʀɢᴀʀ ᴇsᴇ ᴛɪᴋᴛᴏᴋ.") }
-            const tiktok = data.data
-            const videoHD = tiktok.media?.video_hd
-            const videoWM = tiktok.media?.video_wm
-            const audioUrl = tiktok.media?.audio
-            const coverUrl = tiktok.media?.cover
-            const videoUrl = videoHD || videoWM
-            if (!videoUrl) { await msg.react("❌"); return msg.reply("❌ ɴᴏ sᴇ ᴇɴᴄᴏɴᴛʀᴏ ᴇʟ ᴠɪᴅᴇᴏ.") }
 
+            if (!data.status || !data.data) { 
+                await msg.react("❌")
+                return msg.reply("❌ ɴᴏ sᴇ ᴘᴜᴅᴏ ᴅᴇsᴄᴀʀɢᴀʀ ᴇsᴇ ᴛɪᴋᴛᴏᴋ.") 
+            }
+
+            const tiktok = data.data
+            const videoUrl = tiktok.media?.video_hd || tiktok.media?.video_wm
+            
+            if (!videoUrl) { 
+                await msg.react("❌")
+                return msg.reply("❌ ɴᴏ sᴇ ᴇɴᴄᴏɴᴛʀᴏ ᴇʟ ᴠɪᴅᴇᴏ.") 
+            }
+
+            // 2. Formatear stats y descripción
             const views = formatViews(tiktok.stats?.views)
             const likes = formatViews(tiktok.stats?.likes)
-            const comments = formatViews(tiktok.stats?.comments)
-            const shares = formatViews(tiktok.stats?.shares)
-            const titulo = tiktok.title ? (tiktok.title.length > 150 ? tiktok.title.substring(0, 150) + "..." : tiktok.title) : "Sin título"
+            const titulo = tiktok.title ? (tiktok.title.length > 100 ? tiktok.title.substring(0, 100) + "..." : tiktok.title) : "Sin título"
 
             const infoMessage = `✧ ‧₊˚ 𝚃𝙸𝙺𝚃𝙾𝙺 𝙳𝙻 ୧ֹ˖ ⑅ ࣪⊹
 ⊹₊ ˚‧︵‿₊୨୧₊‿︵‧ ˚ ₊⊹
-› ✰ Título: ${titulo}
-› ✿ User: @${tiktok.author?.username || "desconocido"}
-› ✦ Nombre: ${tiktok.author?.nickname || "Desconocido"}
+› ✰ 𝚃𝚒𝚝𝚞𝚕𝚘: ${titulo}
+› ✿ 𝚄𝚜𝚎𝚛: @${tiktok.author?.username || "user"}
 
-› ꕤ ━━ 𝚂𝚃𝙰𝚃𝚂 ━━ ꕤ
-› 👁️ Vistas: ${views}
-› ❤️ Likes: ${likes}
-› 💬 Comments: ${comments}
-› 🔁 Shares: ${shares}
-
-› ❖ Calidad: ${videoHD ? "ʜᴅ sɪɴ ᴍᴀʀᴄᴀ ✅" : "ᴄᴏɴ ᴍᴀʀᴄᴀ ᴅᴇ ᴀɢᴜᴀ"}
-› ✰ Status: \`Success\`
+› 👁️ ${views} | ❤️ ${likes}
+› ❖ ${tiktok.media?.video_hd ? "ʜᴅ sɪɴ ᴍᴀʀᴄᴀ ✅" : "ᴄᴏɴ ᴍᴀʀᴄᴀ"}
 
 > Powered by 𝓜𝓲𝓼𝓪 ♡`
 
+            // 3. Descargar el Buffer del video
             let videoBuffer
             try {
-                const res = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60000, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Referer': 'https://www.tiktok.com/' } })
+                const res = await axios.get(videoUrl, { 
+                    responseType: 'arraybuffer', 
+                    timeout: 60000, 
+                    headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.tiktok.com/' } 
+                })
                 videoBuffer = Buffer.from(res.data)
             } catch (dlErr) {
-                console.log("ᴇʀʀᴏʀ ᴅᴇsᴄᴀʀɢᴀɴᴅᴏ ᴛɪᴋᴛᴏᴋ:", dlErr.message)
-                if (videoHD && videoWM && videoUrl === videoHD) {
-                    try {
-                        const res2 = await axios.get(videoWM, { responseType: 'arraybuffer', timeout: 60000, headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.tiktok.com/' } })
-                        videoBuffer = Buffer.from(res2.data)
-                    } catch { await msg.react("❌"); return msg.reply("❌ ᴇʀʀᴏʀ ᴅᴇsᴄᴀʀɢᴀɴᴅᴏ ᴇʟ ᴠɪᴅᴇᴏ.") }
-                } else { await msg.react("❌"); return msg.reply("❌ ᴇʀʀᴏʀ ᴅᴇsᴄᴀʀɢᴀɴᴅᴏ ᴇʟ ᴠɪᴅᴇᴏ.") }
+                console.log("Error descargando video:", dlErr.message)
+                await msg.react("❌")
+                return msg.reply("❌ ᴇʀʀᴏʀ ᴀʟ ᴏʙᴛᴇɴᴇʀ ᴇʟ ᴀʀᴄʜɪᴠᴏ ᴅᴇʟ ᴠɪᴅᴇᴏ.")
             }
 
             const sizeMB = videoBuffer.length / (1024 * 1024)
-            if (sizeMB > 60) { await msg.react("❌"); return msg.reply(`❌ ᴠɪᴅᴇᴏ ᴍᴜʏ ᴘᴇsᴀᴅᴏ (${sizeMB.toFixed(1)}MB).`) }
+            if (sizeMB > 60) { 
+                await msg.react("❌")
+                return msg.reply(`❌ ᴠɪᴅᴇᴏ ᴍᴜʏ ᴘᴇsᴀᴅᴏ (${sizeMB.toFixed(1)}MB).`) 
+            }
 
-            try {
-                if (coverUrl) {
-                    const coverMedia = await MessageMedia.fromUrl(coverUrl, { unsafeMime: true })
-                    await msg.reply(coverMedia, undefined, { caption: infoMessage })
-                } else { await msg.reply(infoMessage) }
-            } catch { await msg.reply(infoMessage) }
-
+            // 4. Enviar VIDEO con la INFO en el CAPTION (Todo en uno)
             const videoMedia = new MessageMedia('video/mp4', videoBuffer.toString('base64'), 'tiktok_video.mp4')
-            await msg.reply(videoMedia, undefined, {
-                caption: `🎬 𝚃𝚒𝚔𝚃𝚘𝚔 ━ @${tiktok.author?.username || "user"}`,
-                sendMediaAsDocument: sizeMB > 14
+            
+            await client.sendMessage(msg.from, videoMedia, {
+                caption: infoMessage,
+                quotedMessageId: msg.id._serialized,
+                sendMediaAsDocument: sizeMB > 16 // Si pesa mucho, lo envía como documento para no perder calidad
             })
 
-            if (audioUrl) {
-                try {
-                    const audioRes = await axios.get(audioUrl, { responseType: 'arraybuffer', timeout: 30000, headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.tiktok.com/' } })
-                    const audioMedia = new MessageMedia('audio/mpeg', Buffer.from(audioRes.data).toString('base64'), 'tiktok_audio.mp3')
-                    await msg.reply(audioMedia, undefined, { sendAudioAsVoice: false })
-                } catch { console.log("ᴀᴜᴅɪᴏ ᴅᴇ ᴛɪᴋᴛᴏᴋ ɴᴏ ᴅɪsᴘᴏɴɪʙʟᴇ") }
-            }
             await msg.react("✅")
+
         } catch (err) {
             console.log("ᴇʀʀᴏʀ ᴛɪᴋᴛᴏᴋ:", err.message)
-            await msg.react("❌"); await msg.reply("⚠️ ᴇʀʀᴏʀ ᴀʟ ᴅᴇsᴄᴀʀɢᴀʀ ᴇʟ ᴛɪᴋᴛᴏᴋ.")
+            await msg.react("❌")
+            await msg.reply("⚠️ ᴇʀʀᴏʀ ɪɴᴛᴇʀɴᴏ ᴀʟ ᴘʀᴏᴄᴇsᴀʀ ᴛɪᴋᴛᴏᴋ.")
         }
     }
 
@@ -1696,7 +1737,7 @@ ${adminList}
 
     // ꕤ OWNER / CREADORA
     else if (command === "owner" || command === "creadora") {
-        await sendExternalAdMessage(msg.from, `✧ ‧₊˚ 𝙾𝚆𝙽𝙴𝚁 ୧ֹ˖ ⑅ ࣪⊹
+        await sendExternalAdMessage(msg.from, `✧ ‧₊˚ *𝙾𝚆𝙽𝙴𝚁* ୧ֹ˖ ⑅ ࣪⊹
 ⊹₊ ˚‧︵‿₊୨୧₊‿︵‧ ˚ ₊⊹
 › ꕤ Nombre ⊹ Yanniel
 › ✰ Numero ⊹ @${config.ownerNumber[0]}
@@ -1754,6 +1795,8 @@ ${adminList}
 > ✐ Funciones útiles para mejorar la experiencia diaria.
 ✿ .ia › .ai › .gemini
 > Chat inteligente para resolver dudas o generar textos con IA.
+✿.pin › .pinterest
+> Busca imágenes en Pinterest según tus palabras clave.
 ✿ .s › .sticker
 > Convierte imágenes o videos cortos en stickers personalizados.
 ˚.⋆ֹ　 ꒰ 𝙰 𝙽 𝙸 𝙼 𝙴 ꒱ㆍ₊⊹
@@ -1856,7 +1899,6 @@ ${adminList}
     kill: ["kill", "matar", "asesinar"],
     punch: ["punch", "pegar", "golpear"],
     slap: ["slap", "bofetada", "cachetada"],
-    ssss: ["", "patear", "patada"],
     shoot: ["shoot", "disparar"],
     stab: ["stab", "apuñalar"],
     choke: ["choke", "ahorcar"],
