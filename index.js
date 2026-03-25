@@ -883,13 +883,13 @@ else if (command === "play" || command === "ytmp3") {
                const thumbUrl = v.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
                let info = `✧ ‧₊˚ *𝚈𝙾𝚄𝚃𝚄𝙱𝙴 𝚅𝙸𝙳𝙴𝙾* ୧ֹ˖ ⑅ ࣪⊹
    ⊹₊ ˚‧︵‿₊୨୧₊‿︵‧ ˚ ₊⊹
-    › ✿ \`Canal\`: *${v.author?.name || "?"}*
+   › ✰ \`Título\`: *${v.title}*
+   › ✿ \`Canal\`: *${v.author?.name || "?"}*
    › ✦ \`Duración\`: *${v.duration?.timestamp || "??:??"}*
    › ꕤ \`Vistas\`: *${formatViews(v.views)}*
-   › ✦ \`AGO\`: *${data?.ago || "?"}*
    › ❖ \`Link\`: *${v.url}*
    
-   > Powered by 𝓜𝓲𝓼𝓪 ♡`
+> Powered by 𝓜𝓲𝓼𝓪 ♡`
    
                let thumb
                try { thumb = await MessageMedia.fromUrl(thumbUrl, { unsafeMime: true }) } catch { thumb = null }
@@ -945,7 +945,7 @@ else if (command === "play" || command === "ytmp3") {
                }
    
                const videoMedia = new MessageMedia('video/mp4', videoBuffer.toString('base64'), `${v.title}.mp4`)
-               await msg.reply(videoMedia, undefined, { caption: `🎥 ${v.title}`, sendMediaAsDocument: sizeMB > 14 })
+               await msg.reply(videoMedia, undefined, { caption: ` *${v.title}*`, sendMediaAsDocument: sizeMB > 14 })
                await msg.react("✅")
            } catch (e) {
                await msg.react("❌"); await msg.reply(`❌ ᴇʀʀᴏʀ: ${e.message}`)
