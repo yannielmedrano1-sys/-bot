@@ -1844,6 +1844,8 @@ ${adminList}
 > Busca videos en YouTube y los descarga en formato de video MP4.
 ✿ .tiktok › .tt
 > Descarga videos de TikTok sin marca de agua mediante el enlace.
+✿ .ig › .instagram
+> Descarga fotos o videos de Instagram usando el enlace.
 
 ˚.⋆ֹ　 ꒰ 𝚄 𝚃 𝙸 𝙻 𝙸 𝚃 𝙸 𝙴 𝚂 ꒱ㆍ₊⊹
 > ✐ Funciones útiles para mejorar la experiencia diaria.
