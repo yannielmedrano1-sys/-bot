@@ -951,6 +951,87 @@ else if (command === "play" || command === "ytmp3") {
                await msg.react("❌"); await msg.reply(`❌ ᴇʀʀᴏʀ: ${e.message}`)
            }
        }
+       // ꕤ ━━━━━━━━━━ INSTAGRAM DL (OPTIMIZADO) ━━━━━━━━━━ ꕤ
+        else if (command === "ig" || command === "instagram") {
+            if (!text) return msg.reply("❌ Pega un link de Instagram.\n\nEj: .ig https://instagram.com/reel/...")
+
+            try {
+                await msg.react("⏳")
+
+                let result = null
+
+                // 🔥 1. NEXY (PRINCIPAL)
+                try {
+                    const res = await axios.get(
+                        `https://api.nexylight.xyz/dl/ig?url=${encodeURIComponent(text)}`,
+                        { timeout: 15000 }
+                    )
+                    if (res.data?.status) result = res.data.result
+                } catch (e) {
+                    console.log("❌ Nexy IG falló")
+                }
+
+                // 🔁 2. RYUZEI FALLBACK
+                if (!result) {
+                    try {
+                        const res = await axios.get(
+                            `https://api.ryuzei.xyz/dl/ig?url=${encodeURIComponent(text)}`,
+                            { timeout: 15000 }
+                        )
+                        if (res.data?.status) result = res.data.result
+                    } catch (e) {
+                        console.log("❌ Ryuzei IG falló")
+                    }
+                }
+
+                if (!result || !result.url) {
+                    await msg.react("❌")
+                    return msg.reply("❌ No se pudo obtener el contenido.")
+                }
+
+                // 📩 INFO CON EL DISEÑO DE CRASH BOT
+                const infoMessage = `✧ ‧₊˚ *INSTAGRAM DL* ୧ֹ˖ ⑅ ࣪⊹
+⊹₊ ˚‧︵‿₊୨୧₊‿︵‧ ˚ ₊⊹
+
+› ✿ \`Usuario\`: *@${result.username || "Desconocido"}*
+› ✦ \`Likes\`: *${formatViews(result.likes) || "0"}*
+› ꕤ \`Comentarios\`: *${formatViews(result.comments) || "0"}*
+› ✦ \`Tipo\`: *${result.type || "Post/Reel"}*
+› ❖ \`Link\`: *${text.substring(0, 30)}...*
+
+> Powered by 𝓜𝓲𝓼𝓪 ♡`
+
+                // 📦 DESCARGA Y ENVÍO ÚNICO
+                const mediaRes = await axios.get(result.url, {
+                    responseType: "arraybuffer",
+                    timeout: 60000,
+                    headers: { "User-Agent": "Mozilla/5.0" }
+                })
+
+                const buffer = Buffer.from(mediaRes.data)
+                const isVideo = result.type === "video" || result.url.includes(".mp4")
+
+                const media = new MessageMedia(
+                    isVideo ? "video/mp4" : "image/jpeg",
+                    buffer.toString("base64"),
+                    isVideo ? "instagram.mp4" : "instagram.jpg"
+                )
+
+                // Envío de Media + Info en el mismo mensaje
+                await client.sendMessage(msg.from, media, {
+                    caption: infoMessage,
+                    quotedMessageId: msg.id._serialized
+                })
+
+                await msg.react("✅")
+
+            } catch (err) {
+                console.log("❌ Error en IG:", err.message)
+                await msg.react("❌")
+                await msg.reply("⚠️ Error al procesar Instagram.")
+            }
+        }
+
        // -------- PINTEREST SEARCH (.pin) --------
     else if (command === "pin" || command === "pinterest") {
         if (!text) return msg.reply("❌ ¿Qué quieres buscar? Ejemplo: .pin Misa Amane icon")
